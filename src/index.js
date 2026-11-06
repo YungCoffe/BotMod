@@ -7,6 +7,7 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { BOT_NAME, PREFIX, TOKEN } from './config.js';
+import { startHealthServer } from './health.js';
 import { Store } from './store.js';
 import { commands } from './commands/index.js';
 import { startScheduler } from './punish.js';
@@ -115,6 +116,10 @@ client.on(Events.MessageCreate, async (message) => {
 process.on('unhandledRejection', (error) => {
   console.error('[promise não tratada]', error);
 });
+
+startHealthServer();
+
+startHealthServer();
 
 console.log(`🚀 Iniciando ${BOT_NAME}...`);
 
