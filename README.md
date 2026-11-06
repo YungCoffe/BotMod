@@ -188,7 +188,11 @@ Regras do prefixo:
 
 ---
 
-## Detalhes importantes
+## O que funciona no Render
+
+- O bot rodando dentro do Render (gratuito com piscão/controlador, ou pago sem piscão);
+- O prefixo `z?`, a censura, o automod e a conversa do bot com o Discord;
+- Os comandos de barra `/` (habilitados pelo `npm run deploy`); os dados salvos ficam na pasta `data/`.
 
 **Quem pode usar:** o dono do servidor e Administradores sempre podem. Os demais precisam de um dos cargos liberados com `/config cargo`.
 
@@ -237,7 +241,84 @@ src/
   logger.js             canal de logs
 ```
 
-## Problemas comuns
+## Render
+
+O projeto já vem com um blueprint (`render.yaml`) e um servidor de saúde (`/health`) pronto. O bot está pronto para rodar no Render como **Web Service gratuita** (com piscão externo) ou **Background Worker pago** (sem piscão).
+
+### Pré-requisitos
+
+- **GitHub:** o Render não aceita upload de ZIP. Crie um repositório (pode ser privado) e envie o conteúdo da pasta `bot-moderacao`. O `.env` **nunca** vai pro GitHub.
+- **Discord:** habilite **MESSAGE CONTENT INTENT** e **SERVER MEMBERS INTENT** no menu Bot do portal (precisam estar ligados para o prefixo, censura e automod funcionarem), e anexe as permissões moderação na aplicação do bot (o link de convite no README já traz a lista atualizada).
+- **Variáveis de ambiente:** `DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID` (opcional), `PREFIX` (opcional, padrão `z?`).
+
+### Deploy (blueprint)
+
+1. No Render, `New` → `Blueprint` e selecione o repositório. O `render.yaml` no topo do projeto será lido.
+2. Detalhes do serviço:
+   - `name`: usa o que quiser (só letras/minúsculas/hífens).
+   - `runtime`: `node`.
+   - `buildCommand`: `npm ci` (usa o package-lock.json).
+   - `startCommand`: `npm start`.
+   - `healthCheckPath`: `/health` (requerido só na opção grátis, abaixo).
+   - `envVars`: adicione os 4 campos acima (os 3 primeiros como *Secure*).
+3. Se o deploy falhar com `node: not found` ou `[nodemon] not found`, ajuste o `runtime` do serviço para `node` (não precisa mudar a versão: o Render já sobe a LTS do Node contemporânea). Caso queira fixar a versão, crie um arquivo `.node-version` com `22.14.0`.
+
+### Duas opções de execução
+
+**Opção 1 (grátis, com piscão externo).** Web Service `plan: free` com `healthCheckPath: /health`. Sem conexão HTTP by 15 minutos, Render "dorme" o serviço e o bot para. Use um monitor grátis (UptimeRobot, Cron-job.org) que faça GET `/health` a cada 5 minutos. O bot volta a subir automaticamente. Limite do Render: 750 horas mensais — um serviço semi-rigide 24h/dia cabe no limite quase todo mês.
+
+**Opção 2 (recomendada, sem piscão).** `type: worker`, `plan: starter` (US$ 7/mês). Sem porta aberta, sem piscão, não dorme. Em `render.yaml`, conserte:
+
+```yaml
+services:
+  - type: worker
+    name: bot-moderacao
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: PREFIX
+        value: z?
+```
+
+Com a opção 2 o bot fica disponível 24h em 24h e não consome horas de 15min, mas o data/* continua sendo ephemeno (perde em cada redeploy/reload). Para persistir adicione um Render Disk na pasta `/opt/render/project/src/data` (opcional, $0,25/GB/mês).
+
+### Atualizar depois
+
+- `npm run deploy` atualiza os comandos do Discord;
+- Envie o código para o GitHub: o Render reconstrói automaticamente o serviço;
+- O token expira se o Discord resetar: gere outro no portal e atualize a variável no Render.
+1. **GitHub:** o Render não aceita upload de ZIP. Crie um repositório (pode ser privado) e envie o conteúdo da pasta `bot-moderacao` (o `.env` **nunca** vá pro GitHub).
+2. **Render:** Abra <https://dashboard.render.com>, `New` → `Blueprint`, selecione o repositório e `Parse Render YAML`.
+3. **Variáveis de ambiente:** em *Environment* do serviço, acrescente:
+   - `DISCORD_TOKEN` (secreto, não exporte na sua máquina)
+   - `CLIENT_ID` e `GUILD_ID` (opcionais)
+   - `PREFIX` (opcional, padrão `z?`)
+
+### O que está no `render.yaml`
+
+- `type: web` com `plan: free`, `healthCheckPath: /health` e `buildCommand: npm ci`.
+- Se não quiser manter uma tela aberta, troque `type: web` por `type: worker` e `plan: starter`, e retire `healthCheckPath`. O worker não volta a dormir e não consome horas de 15min.
+
+### Manter o bot acordado (opção grátis)
+
+Web services gratuitos **dormem** se ficarem 15 minutos sem requisições. O bot é notificado pelo Discord do lado de fora, então ele não "acorda" por si só: fique de olho em um serviço externo que faça GET `https://seu-servico.onrender.com/health` a cada alguns minutos (UptimeRobot, Cron-job.org, etc.). Se o plano gratuito terminar (750 horas por mês), o Render suspende todos os serviços até o mês seguinte.
+
+### O dado não sobrevive a reinícios
+
+File systems em serviços gratuitos são **ephemeral**: `data/*.json` (avisos e multas temporárias) é limpo quando o serviço reinicia, recarrega ou é atualizado. Para não perder, crie um **Render Disk** (pago, $0,25/GB/mês) na pasta `/opt/render/project/src/data` — ou use um banco Postgres/Key Value gratuito, se quiser guardar de verdade.
+
+### Teste
+
+- Vá em *Logs* do serviço e espere o bot entrar no canal.
+- Use `npm run deploy` ou o menu *Builds* para atualizar sem perder o estado.
 
 - **"Usou intents não permitidas" ao ligar:** ative **MESSAGE CONTENT INTENT** e **SERVER MEMBERS INTENT** no menu Bot do portal.
 - **O prefixo `z?` não responde:** confira o `PREFIX` no `.env` e se o MESSAGE CONTENT INTENT está ligado.

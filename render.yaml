@@ -1,0 +1,29 @@
+# Blueprint do Render — para usar, conecte o repositório ao Render e
+# suba este arquivo (render.yaml no topo do projeto).
+#
+# Opção 1 (grátis, conservador): Web Service
+# Devido ao espaço de 15 minutos de inatividade, uma "controladora" externa
+# (ex.: UptimeRobot, todo intervalo) deve fazer GET /health para manter o
+# bot acordado.
+#
+# Opção 2 (recomendada): Background Worker
+# Copie esse arquivo e troque o trecho type: web abaixo por type: worker,
+# remova healthCheckPath e altere plan para starter.
+# Não mantém porta aberta e o bot fica rodando 24h sem piscar.
+services:
+  - type: web
+    name: bot-moderacao
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: PREFIX
+        value: z?
