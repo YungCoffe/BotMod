@@ -52,6 +52,7 @@ PREFIX=z?
 > `GUILD_ID` é opcional. Com ele preenchido, os comandos aparecem na hora no servidor.
 > Sem ele, os comandos são globais e podem demorar até 1 hora para aparecer.
 > `PREFIX` também é opcional — o padrão é `z?`.
+> `OWNER_IDS` é opcional: IDs (separados por vírgula) de quem é **dono do bot**. O dono da aplicação no Developer Portal já é reconhecido sozinho (veja "Dono do bot" abaixo).
 
 ## 4. Convidar o bot
 
@@ -114,7 +115,7 @@ Pronto. Para tirar o acesso de um cargo: `/config cargo remover`.
 | `/clear quantidade [usuario]` | Apaga mensagens do canal |
 | `/lock` / `/unlock` | Tranca / destranca o canal |
 | `/slowmode tempo` | Modo lento (aceita `off`) |
-| `/setcargo usuario cargo` | Adiciona ou remove um cargo (dá para usar em **você mesmo**; o cargo precisa estar abaixo do seu e do meu) |
+| `/setcargo usuario cargo` | Adiciona ou remove um cargo (dá para usar em **você mesmo**; o cargo precisa estar abaixo do seu e do meu; só o **dono do bot** pode acima do próprio cargo) |
 | `/cargotemp usuario cargo tempo [motivo]` | Dá um cargo por tempo limitado (1 min a 365 dias); o bot remove no fim |
 | `/nick usuario [apelido]` | Troca o apelido (vazio = restaurar) |
 | `/fastpuni acao ...` | Aplica **sem confirmação** |
@@ -272,11 +273,22 @@ src/
   logger.js             canal de logs
 ```
 
+## Dono do bot
+
+Só o **dono do bot** pode dar ou tirar (com `/setcargo` ou `/cargotemp`) um cargo **igual ou acima do seu cargo mais alto**. Quem está em cargo liberado, mesmo com a permissão *Administrador* do Discord, **não** passa por cima dessa regra e recebe a mensagem "Só o dono do bot pode dar ou tirar cargos acima do próprio".
+
+- O dono da aplicação no Discord Developer Portal (ou o dono da equipe, se a aplicação for de uma equipe) é reconhecido **automaticamente** quando o bot liga. O console mostra `Dono(s) do bot: ...`.
+- Para incluir mais alguém, ponha os IDs no `.env`: `OWNER_IDS=111111111111111111,222222222222222222`.
+- Nem o dono consegue dar um cargo **acima do cargo do próprio bot** (limite do Discord): suba o cargo do bot na lista de cargos do servidor.
+- O dono do servidor **não** é dono do bot automaticamente: se for outra pessoa, coloque o ID dele em `OWNER_IDS`.
+
+---
+
 ## Cargo temporário
 
 `/cargotemp usuario cargo tempo [motivo]` (ou `z?cargotemp @pessoa @cargo 2h motivo`) dá o cargo e o bot **remove sozinho** quando o tempo acabar. O tempo vai de **1 minuto a 365 dias** (`30min`, `2h`, `1d`, `1sem`...).
 
-- Vale a mesma regra do `/setcargo`: o cargo precisa estar **abaixo do seu cargo mais alto** e **abaixo do meu**. Dá para usar em você mesmo.
+- Vale a mesma regra do `/setcargo`: o cargo precisa estar **abaixo do seu cargo mais alto** e **abaixo do meu**; só o **dono do bot** pode dar um cargo acima do próprio. Dá para usar em você mesmo.
 - Usar de novo no mesmo cargo **renova** o prazo (substitui o anterior).
 - Se a pessoa **já tem o cargo sem prazo**, o comando recusa: senão ela o perderia no fim. Remova antes com `/setcargo`.
 - Mexer no cargo com `/setcargo` (tirar ou dar de novo) **cancela o prazo**, então um cargo dado depois nunca é removido por um prazo antigo.
@@ -305,7 +317,7 @@ Cada pessoa cadastra até **10 palavras** com `/highlight adicionar palavra`. Qu
 O bot abre uma porta HTTP (variável `PORT`, que o Render define sozinho) com as rotas `/` e `/health`, que respondem `200` com o estado do bot. Isso evita o erro "Port scan timeout".
 
 - **Build Command:** `npm install` · **Start Command:** `npm start`
-- Variáveis de ambiente: `DISCORD_TOKEN`, `CLIENT_ID` (e `GUILD_ID` / `PREFIX` se usar).
+- Variáveis de ambiente: `DISCORD_TOKEN`, `CLIENT_ID` (e `GUILD_ID` / `PREFIX` / `OWNER_IDS` se usar).
 - **Health Check Path:** `/health`
 - No plano grátis, o Render **hiberna** o serviço depois de ~15 min sem acesso HTTP e o bot cai. Use um monitor (ex.: UptimeRobot) chamando `https://SEU-APP.onrender.com/health` a cada 5 minutos.
 - O disco do plano grátis é temporário: a pasta `data/` (avisos, punições, ranking de call) some a cada reinício. Para não perder dados, use um disco persistente.
