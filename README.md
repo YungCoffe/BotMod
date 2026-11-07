@@ -63,14 +63,18 @@ https://discord.com/api/oauth2/authorize?client_id=SEU_CLIENT_ID&permissions=110
 
 ## 5. Registrar os comandos
 
-```bash
-npm run deploy
-```
+**Não precisa fazer nada:** o bot registra os comandos de barra (`/`) **sozinho toda vez que liga** (veja a linha `✅ 30 comandos de barra registrados...` no console). Isso vale também no Render e em qualquer hospedagem.
 
-Se preencheu o `GUILD_ID`, eles já aparecem no servidor. Para forçar o modo servidor de testes:
+- Com `GUILD_ID` preenchido, eles aparecem **na hora**, mas só nesse servidor. Se o `GUILD_ID` estiver errado ou o bot não estiver nesse servidor, ele registra **globalmente** (pode levar até 1 hora).
+- Sem `GUILD_ID`, são globais (todos os servidores, até 1 hora).
+- Para desligar o registro automático, ponha `AUTO_DEPLOY=false` no `.env`.
+
+Se preferir registrar na mão (ou depois de mexer nos comandos sem religar o bot):
 
 ```bash
-npm run deploy:teste
+npm run deploy          # segue o .env
+npm run deploy:teste    # só no servidor do GUILD_ID (aparece na hora)
+npm run deploy:global   # em todos os servidores e limpa os do GUILD_ID (evita comandos duplicados)
 ```
 
 ## 6. Ligar o bot
@@ -208,7 +212,7 @@ Como funciona:
 - Trocar de canal de voz **não** zera a contagem. O canal **AFK** do servidor **conta** (aparece com 💤 em "Em call agora"); os **bots** não contam. Para ignorar o AFK, troque `COUNT_AFK` para `false` em `src/voice.js`.
 - Quem **sai do servidor** (ou é expulso/banido) sai do ranking.
 - O tempo é salvo em `data/voz.json` a cada minuto e ao desligar o bot. Se o bot cair, perde-se no máximo 1 minuto. A contagem começa quando o bot é ligado pela primeira vez com esta versão.
-- Não precisa ativar nada no portal do Discord: a intent de voz (`GUILD_VOICE_STATES`) não é privilegiada. Só rode `npm run deploy` de novo para registrar o `/rankcall`.
+- Não precisa ativar nada no portal do Discord: a intent de voz (`GUILD_VOICE_STATES`) não é privilegiada. Os comandos novos são registrados sozinhos ao religar o bot.
 - Para deixar o comando só para a equipe, troque `staffOnly: false` por `true` em `src/commands/voz.js`.
 
 ---
@@ -243,7 +247,8 @@ Como funciona:
 src/
   index.js              liga o bot, distribui comandos e mensagens
   server.js             porta HTTP (/health) para o Render
-  deploy.js             registra os comandos no Discord
+  deploy.js             registra os comandos na mão (npm run deploy)
+  register.js           registro automático dos comandos ao ligar
   commands/
     moderacao.js        comandos de moderação
     automod.js          /censura e /automod
@@ -291,7 +296,7 @@ Cada pessoa cadastra até **10 palavras** com `/highlight adicionar palavra`. Qu
 - Mensagem apagada pelo automod/censura não marca ninguém. Quem sai do servidor perde as próprias palavras.
 - As palavras ficam em `data/highlights.json`.
 - Use pelos comandos de barra (`/highlight ...`): as respostas são só suas. Pelo prefixo (`z?highlight ...`) a resposta aparece para todo mundo.
-- Rode `npm run deploy` de novo para registrar o `/highlight`. Para deixar só a equipe, troque `staffOnly: false` por `true` em `src/commands/highlight.js`.
+- Para deixar só a equipe, troque `staffOnly: false` por `true` em `src/commands/highlight.js`.
 
 ---
 
@@ -312,8 +317,12 @@ O bot abre uma porta HTTP (variável `PORT`, que o Render define sozinho) com as
 - **"Usou intents não permitidas" ao ligar:** ative **MESSAGE CONTENT INTENT** e **SERVER MEMBERS INTENT** no menu Bot do portal.
 - **O prefixo `z?` não responde:** confira o `PREFIX` no `.env` e se o MESSAGE CONTENT INTENT está ligado.
 - **"Sem permissão" para todo mundo:** configure `/config cargo adicionar` com o cargo da equipe.
-- **Comandos não aparecem:** rode `npm run deploy` de novo e confira o `CLIENT_ID` no `.env`. Comandos globais podem levar 1 hora.
+- **Os comandos `/` não aparecem:** veja o console de quando o bot liga (no Render: aba *Logs*).
+  - `✅ N comandos de barra registrados` → deu certo. Se foi global, pode levar até 1 hora; com `GUILD_ID` aparece na hora, só nesse servidor. Feche e abra o Discord (Ctrl+R no computador) para atualizar a lista.
+  - `❌ ... Dica: ...` → siga a dica (token inválido, `CLIENT_ID` errado ou convite sem o escopo `applications.commands`; nesse caso convide de novo pelo link do passo 4).
+  - Nenhuma dessas linhas → o `AUTO_DEPLOY` está `false` ou o Render ainda está rodando a versão antiga (confira o último deploy).
+  - Comandos **duplicados** (um do servidor e um global): rode `npm run deploy:global` uma vez.
 - **"Eu preciso da permissão ...":** o próprio bot precisa das permissões no servidor. Use o link de convite acima ou ajuste o cargo dele.
 - **Figurinha recusada:** ela precisa ser PNG/APNG de 320x320 e até 512 KB.
-- **`/rankcall` não aparece ou vem vazio:** rode `npm run deploy` de novo; o ranking só passa a contar a partir da primeira vez que o bot fica ligado com esta versão.
+- **`/rankcall` vem vazio:** o ranking só passa a contar a partir da primeira vez que o bot fica ligado com esta versão.
 - **Não consegui entrar no Discord:** o token está errado ou foi resetado. Gere outro e atualize o `.env`.

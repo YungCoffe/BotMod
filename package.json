@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy": "node src/deploy.js",
-    "deploy:teste": "node src/deploy.js --guild"
+    "deploy:teste": "node src/deploy.js --guild",
+    "deploy:global": "node src/deploy.js --global"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
