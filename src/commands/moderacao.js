@@ -687,7 +687,78 @@ const commands = [
 
       await edit(
         interaction,
-        await actions.toggleRole({ client, guild, actor, cfg, member, role }),
+        await actions.toggleRole({ client, guild, actor, cfg, store, member, role }),
+      );
+    },
+  },
+
+  // ------------------------------------------------------------- cargo temporário
+  {
+    staffOnly: true,
+    data: new SlashCommandBuilder()
+      .setName('cargotemp')
+      .setDescription('Dá um cargo por tempo limitado (o bot remove sozinho no fim)')
+      .addUserOption((option) =>
+        option.setName('usuario').setDescription('Membro').setRequired(true),
+      )
+      .addRoleOption((option) =>
+        option.setName('cargo').setDescription('Cargo a dar').setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('tempo')
+          .setDescription('Por quanto tempo: 30min, 2h, 1d, 1sem, 1mes... (1min a 365 dias)')
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName('motivo')
+          .setDescription('Motivo')
+          .setRequired(false)
+          .setMaxLength(300),
+      ),
+
+    async run({ interaction, guild, client, store, actor, cfg }) {
+      await defer(interaction);
+
+      const user = interaction.options.getUser('usuario', true);
+      const role = interaction.options.getRole('cargo', true);
+      const reason = interaction.options.getString('motivo') || '';
+
+      const duration = parseDuration(interaction.options.getString('tempo', true));
+      if (!duration) return invalidTime(interaction);
+
+      const member = await findMember(guild, user);
+
+      if (!member) {
+        return fail(interaction, 'Não está no servidor', 'Esse usuário não está neste servidor.');
+      }
+
+      try {
+        actions.guardTempRole({ guild, actor, role, member, store, duration });
+      } catch (error) {
+        if (error instanceof UserError) return fail(interaction, 'Não foi possível', error.message);
+        throw error;
+      }
+
+      const renewing = Boolean(store.findTempRole(guild.id, member.id, role.id));
+      const endsAt = Math.floor((Date.now() + duration.ms) / 1000);
+
+      const confirmed = await ask(interaction, {
+        title: renewing ? 'Confirmar renovação do cargo temporário?' : 'Confirmar cargo temporário?',
+        lines: [
+          `**Usuário:** ${member.user.username} (\`${member.id}\`)`,
+          `**Cargo:** ${role}`,
+          `**Duração:** ${duration.text} (termina <t:${endsAt}:R>)`,
+          reason ? `**Motivo:** ${reason}` : null,
+        ],
+        confirmLabel: 'Sim, aplicar',
+      });
+      if (!confirmed) return;
+
+      await edit(
+        interaction,
+        await actions.tempRole({ client, guild, actor, cfg, store, member, role, duration, reason }),
       );
     },
   },

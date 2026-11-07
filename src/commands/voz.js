@@ -52,7 +52,8 @@ const commands = [
         .map(
           ({ userId, session, place }) =>
             `🟢 **#${place}** <@${userId}> — ${formatCallTime(totals.get(userId))} no total · ` +
-            `há ${formatCallTime(now - session.startedAt)} em <#${session.channelId}>`,
+            `há ${formatCallTime(now - session.startedAt)} em <#${session.channelId}>` +
+            `${session.channelId === guild.afkChannelId ? ' 💤 (AFK)' : ''}`,
         );
 
       if (online.length > LIMIT) lines.push(`… e mais ${online.length - LIMIT} em call.`);

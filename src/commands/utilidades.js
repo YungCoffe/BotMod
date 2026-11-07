@@ -42,7 +42,7 @@ const commands = [
               '`/mute` `/unmute`\n' +
               '`/warn` `/warnings` `/clearwarns`\n' +
               '`/clear` `/lock` `/unlock` `/slowmode`\n' +
-              '`/setcargo` `/nick`\n' +
+              '`/setcargo` `/cargotemp` `/nick`\n' +
               '`/censura` `/automod`',
           },
           {
@@ -56,6 +56,7 @@ const commands = [
               '`/help` `/ping` `/userinfo` `/serverinfo` `/avatar`\n' +
               '`/say` `/anuncio`\n' +
               '`/rankcall` — ranking de tempo em call (todos podem usar)\n' +
+              '`/highlight` — te marco quando alguém falar uma palavra sua (todos podem usar)\n' +
               '`/config` — cargos, logs, automod e censura (Administrador)',
           },
           {

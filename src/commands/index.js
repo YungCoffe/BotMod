@@ -4,8 +4,9 @@ import { commands as emojis } from './emojis.js';
 import { commands as utilities } from './utilidades.js';
 import { commands as configuration } from './config.js';
 import { commands as voice } from './voz.js';
+import { commands as highlight } from './highlight.js';
 
-const all = [...moderation, ...automod, ...emojis, ...utilities, ...configuration, ...voice];
+const all = [...moderation, ...automod, ...emojis, ...utilities, ...configuration, ...voice, ...highlight];
 
 const seen = new Set();
 for (const command of all) {
