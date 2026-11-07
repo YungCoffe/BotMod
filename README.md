@@ -2,12 +2,13 @@
 
 Bot de Discord enxuto: **só moderação + utilidades**, com acesso liberado por **cargo**, confirmação **Sim/Não** antes de cada punição e o comando **`/fastpuni`**, que aplica na hora sem perguntar. Funciona com **comandos de barra** e também com o **prefixo `z?`**.
 
-- **27 comandos** (15 de moderação, 2 de automod, 10 de utilidades/configuração)
+- **28 comandos** (15 de moderação, 2 de automod, 11 de utilidades/configuração)
 - Tempo em formato livre: `1s`, `30s`, `10min`, `1h`, `1d`, `1sem`, `1mes`, `1a` — e combinações como `1d12h`
 - Banimento e silenciamento temporários são removidos sozinhos quando o tempo acaba
 - Avisos ficam salvos (mesmo se o bot reiniciar)
 - Censura de palavras e bloqueio automático de links
 - Criação de emojis e figurinhas pelo próprio Discord
+- **Ranking de call** (`/rankcall`): top 5 de quem ficou mais tempo em call e quem está em call agora
 - Tudo é registrado no canal de logs que você escolher
 
 ---
@@ -146,6 +147,7 @@ Para quem não está mais no servidor, use a opção **id** em vez de **usuario*
 | `/avatar [usuario] [servidor]` | Mostra o avatar |
 | `/say texto [canal]` | Faz o bot falar |
 | `/anuncio titulo texto [canal] [cor]` | Envia um anúncio em embed |
+| `/rankcall` | Ranking de tempo em call (**todos** podem usar) |
 | `/config ...` | Cargos, logs, automod e censura (Administrador) |
 
 ### 🎨 Emojis e figurinhas
@@ -188,11 +190,26 @@ Regras do prefixo:
 
 ---
 
-## O que funciona no Render
+## Ranking de call
 
-- O bot rodando dentro do Render (gratuito com piscão/controlador, ou pago sem piscão);
-- O prefixo `z?`, a censura, o automod e a conversa do bot com o Discord;
-- Os comandos de barra `/` (habilitados pelo `npm run deploy`); os dados salvos ficam na pasta `data/`.
+`/rankcall` (ou `z?rankcall`) mostra, em uma mensagem pública:
+
+- **Top 5** de quem mais ficou em call, com 🥇🥈🥉4️⃣5️⃣, o tempo total e um 🟢 em quem está em call agora
+- **Em call agora**: até 5 pessoas que estão em canal de voz neste momento, com a colocação (`#N`), o tempo total, há quanto tempo estão na call e em qual canal
+- No rodapé, a **sua** colocação e o seu tempo
+
+Como funciona:
+
+- O tempo de quem está em call já entra na colocação em tempo real (quem está na call sobe no ranking enquanto fala).
+- Trocar de canal de voz **não** zera a contagem. O canal **AFK** do servidor e os **bots** não contam.
+- Quem **sai do servidor** (ou é expulso/banido) sai do ranking.
+- O tempo é salvo em `data/voz.json` a cada minuto e ao desligar o bot. Se o bot cair, perde-se no máximo 1 minuto. A contagem começa quando o bot é ligado pela primeira vez com esta versão.
+- Não precisa ativar nada no portal do Discord: a intent de voz (`GUILD_VOICE_STATES`) não é privilegiada. Só rode `npm run deploy` de novo para registrar o `/rankcall`.
+- Para deixar o comando só para a equipe, troque `staffOnly: false` por `true` em `src/commands/voz.js`.
+
+---
+
+## Detalhes importantes
 
 **Quem pode usar:** o dono do servidor e Administradores sempre podem. Os demais precisam de um dos cargos liberados com `/config cargo`.
 
@@ -204,7 +221,7 @@ Regras do prefixo:
 
 **Banimento temporário:** é desfeito sozinho quando o tempo termina, mesmo que o bot reinicie no meio.
 
-**Avisos:** ficam guardados na pasta `data/` (não apague essa pasta).
+**Avisos, punições e ranking de call:** ficam guardados na pasta `data/` (não apague essa pasta). Em hospedagens com disco temporário (ex.: planos grátis do Render ou Heroku) essa pasta some a cada reinício: use um disco persistente.
 
 **Censura:** vale para palavras inteiras (uma palavra dentro de outra não conta), sem diferenciar maiúsculas, minúsculas ou acentos. A mensagem é apagada, o autor recebe uma DM e o caso vai para o canal de logs. Limite de 100 palavras por servidor.
 
@@ -227,6 +244,7 @@ src/
     automod.js          /censura e /automod
     emojis.js           /criaremoji e /criarfigurinha
     utilidades.js       help, ping, userinfo, serverinfo, avatar, say, anuncio
+    voz.js              /rankcall (ranking de call)
     config.js           /config (cargos, logs, automod)
   prefix.js             comandos com z? e adaptação das interações
   automod.js            censura de palavras e bloqueio de links
@@ -237,88 +255,12 @@ src/
   punish.js             expiração automática de tempban/mute
   store.js              dados salvos em data/*.json
   time.js               leitura de 1s, 1min, 1d, 1a...
+  voice.js              contagem do tempo em call
   ui.js                 embeds e confirmação Sim/Não
   logger.js             canal de logs
 ```
 
-## Render
-
-O projeto já vem com um blueprint (`render.yaml`) e um servidor de saúde (`/health`) pronto. O bot está pronto para rodar no Render como **Web Service gratuita** (com piscão externo) ou **Background Worker pago** (sem piscão).
-
-### Pré-requisitos
-
-- **GitHub:** o Render não aceita upload de ZIP. Crie um repositório (pode ser privado) e envie o conteúdo da pasta `bot-moderacao`. O `.env` **nunca** vai pro GitHub.
-- **Discord:** habilite **MESSAGE CONTENT INTENT** e **SERVER MEMBERS INTENT** no menu Bot do portal (precisam estar ligados para o prefixo, censura e automod funcionarem), e anexe as permissões moderação na aplicação do bot (o link de convite no README já traz a lista atualizada).
-- **Variáveis de ambiente:** `DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID` (opcional), `PREFIX` (opcional, padrão `z?`).
-
-### Deploy (blueprint)
-
-1. No Render, `New` → `Blueprint` e selecione o repositório. O `render.yaml` no topo do projeto será lido.
-2. Detalhes do serviço:
-   - `name`: usa o que quiser (só letras/minúsculas/hífens).
-   - `runtime`: `node`.
-   - `buildCommand`: `npm ci` (usa o package-lock.json).
-   - `startCommand`: `npm start`.
-   - `healthCheckPath`: `/health` (requerido só na opção grátis, abaixo).
-   - `envVars`: adicione os 4 campos acima (os 3 primeiros como *Secure*).
-3. Se o deploy falhar com `node: not found` ou `[nodemon] not found`, ajuste o `runtime` do serviço para `node` (não precisa mudar a versão: o Render já sobe a LTS do Node contemporânea). Caso queira fixar a versão, crie um arquivo `.node-version` com `22.14.0`.
-
-### Duas opções de execução
-
-**Opção 1 (grátis, com piscão externo).** Web Service `plan: free` com `healthCheckPath: /health`. Sem conexão HTTP by 15 minutos, Render "dorme" o serviço e o bot para. Use um monitor grátis (UptimeRobot, Cron-job.org) que faça GET `/health` a cada 5 minutos. O bot volta a subir automaticamente. Limite do Render: 750 horas mensais — um serviço semi-rigide 24h/dia cabe no limite quase todo mês.
-
-**Opção 2 (recomendada, sem piscão).** `type: worker`, `plan: starter` (US$ 7/mês). Sem porta aberta, sem piscão, não dorme. Em `render.yaml`, conserte:
-
-```yaml
-services:
-  - type: worker
-    name: bot-moderacao
-    runtime: node
-    plan: starter
-    buildCommand: npm ci
-    startCommand: npm start
-    envVars:
-      - key: DISCORD_TOKEN
-        sync: false
-      - key: CLIENT_ID
-        sync: false
-      - key: GUILD_ID
-        sync: false
-      - key: PREFIX
-        value: z?
-```
-
-Com a opção 2 o bot fica disponível 24h em 24h e não consome horas de 15min, mas o data/* continua sendo ephemeno (perde em cada redeploy/reload). Para persistir adicione um Render Disk na pasta `/opt/render/project/src/data` (opcional, $0,25/GB/mês).
-
-### Atualizar depois
-
-- `npm run deploy` atualiza os comandos do Discord;
-- Envie o código para o GitHub: o Render reconstrói automaticamente o serviço;
-- O token expira se o Discord resetar: gere outro no portal e atualize a variável no Render.
-1. **GitHub:** o Render não aceita upload de ZIP. Crie um repositório (pode ser privado) e envie o conteúdo da pasta `bot-moderacao` (o `.env` **nunca** vá pro GitHub).
-2. **Render:** Abra <https://dashboard.render.com>, `New` → `Blueprint`, selecione o repositório e `Parse Render YAML`.
-3. **Variáveis de ambiente:** em *Environment* do serviço, acrescente:
-   - `DISCORD_TOKEN` (secreto, não exporte na sua máquina)
-   - `CLIENT_ID` e `GUILD_ID` (opcionais)
-   - `PREFIX` (opcional, padrão `z?`)
-
-### O que está no `render.yaml`
-
-- `type: web` com `plan: free`, `healthCheckPath: /health` e `buildCommand: npm ci`.
-- Se não quiser manter uma tela aberta, troque `type: web` por `type: worker` e `plan: starter`, e retire `healthCheckPath`. O worker não volta a dormir e não consome horas de 15min.
-
-### Manter o bot acordado (opção grátis)
-
-Web services gratuitos **dormem** se ficarem 15 minutos sem requisições. O bot é notificado pelo Discord do lado de fora, então ele não "acorda" por si só: fique de olho em um serviço externo que faça GET `https://seu-servico.onrender.com/health` a cada alguns minutos (UptimeRobot, Cron-job.org, etc.). Se o plano gratuito terminar (750 horas por mês), o Render suspende todos os serviços até o mês seguinte.
-
-### O dado não sobrevive a reinícios
-
-File systems em serviços gratuitos são **ephemeral**: `data/*.json` (avisos e multas temporárias) é limpo quando o serviço reinicia, recarrega ou é atualizado. Para não perder, crie um **Render Disk** (pago, $0,25/GB/mês) na pasta `/opt/render/project/src/data` — ou use um banco Postgres/Key Value gratuito, se quiser guardar de verdade.
-
-### Teste
-
-- Vá em *Logs* do serviço e espere o bot entrar no canal.
-- Use `npm run deploy` ou o menu *Builds* para atualizar sem perder o estado.
+## Problemas comuns
 
 - **"Usou intents não permitidas" ao ligar:** ative **MESSAGE CONTENT INTENT** e **SERVER MEMBERS INTENT** no menu Bot do portal.
 - **O prefixo `z?` não responde:** confira o `PREFIX` no `.env` e se o MESSAGE CONTENT INTENT está ligado.
@@ -326,4 +268,5 @@ File systems em serviços gratuitos são **ephemeral**: `data/*.json` (avisos e 
 - **Comandos não aparecem:** rode `npm run deploy` de novo e confira o `CLIENT_ID` no `.env`. Comandos globais podem levar 1 hora.
 - **"Eu preciso da permissão ...":** o próprio bot precisa das permissões no servidor. Use o link de convite acima ou ajuste o cargo dele.
 - **Figurinha recusada:** ela precisa ser PNG/APNG de 320x320 e até 512 KB.
+- **`/rankcall` não aparece ou vem vazio:** rode `npm run deploy` de novo; o ranking só passa a contar a partir da primeira vez que o bot fica ligado com esta versão.
 - **Não consegui entrar no Discord:** o token está errado ou foi resetado. Gere outro e atualize o `.env`.
