@@ -6,7 +6,8 @@ import {
   MessageFlags,
   PermissionFlagsBits,
 } from 'discord.js';
-import { BOT_NAME, PREFIX, TOKEN } from './config.js';
+import { AUTO_DEPLOY, BOT_NAME, CLIENT_ID, GUILD_ID, PREFIX, TOKEN } from './config.js';
+import { autoRegister, registerHint } from './register.js';
 import { Store } from './store.js';
 import { commands } from './commands/index.js';
 import { startScheduler } from './punish.js';
@@ -49,6 +50,9 @@ startHttpServer(client);
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ ${readyClient.user.username} está online!`);
   console.log(`   Servidores: ${readyClient.guilds.cache.size}`);
+  for (const guild of [...readyClient.guilds.cache.values()].slice(0, 5)) {
+    console.log(`     - ${guild.name} (${guild.id})`);
+  }
   console.log(`   Comandos: ${client.commands.size}`);
   console.log(`   Prefixo: ${PREFIX}`);
 
@@ -76,6 +80,38 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
 
   startScheduler(client, store);
+
+  // Registra os comandos de barra (/) sozinho: em hospedagens como o Render ninguém roda o deploy.
+  if (AUTO_DEPLOY) {
+    if (CLIENT_ID && CLIENT_ID !== readyClient.user.id) {
+      console.warn(
+        `   ⚠️ O CLIENT_ID do .env (${CLIENT_ID}) não é o ID deste bot (${readyClient.user.id}). Usando o do bot.`,
+      );
+    }
+
+    try {
+      const result = await autoRegister({
+        token: TOKEN,
+        clientId: readyClient.user.id,
+        onFallback: () =>
+          console.warn(
+            `   ⚠️ Não consegui registrar no GUILD_ID ${GUILD_ID} (servidor errado ou sem acesso). Registrando globalmente.`,
+          ),
+      });
+
+      console.log(
+        `   ✅ ${result.count} comandos de barra registrados ${
+          result.scope === 'guild'
+            ? `no servidor ${result.guildId} (aparecem na hora)`
+            : 'globalmente (podem levar até 1 hora para aparecer)'
+        }.`,
+      );
+    } catch (error) {
+      console.error('   ❌ Não consegui registrar os comandos de barra:', error.message ?? error);
+      const hint = registerHint(error);
+      if (hint) console.error(`      Dica: ${hint}`);
+    }
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

@@ -14,6 +14,11 @@ export const CLIENT_ID = (process.env.CLIENT_ID || '').trim();
 export const GUILD_ID = (process.env.GUILD_ID || '').trim();
 export const PREFIX = (process.env.PREFIX || 'z?').trim();
 
+/** Registra os comandos de barra sozinho ao ligar o bot. Use AUTO_DEPLOY=false para desligar. */
+export const AUTO_DEPLOY = !['false', '0', 'no', 'nao', 'não', 'off'].includes(
+  (process.env.AUTO_DEPLOY || '').trim().toLowerCase(),
+);
+
 export const BOT_NAME = 'Staff Bot';
 
 export const COLORS = {
