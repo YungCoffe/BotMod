@@ -48,11 +48,14 @@ export class Store {
     this.punishments = readJson('punicoes.json', { items: [] });
     this.voice = readJson('voz.json', { guilds: {} });
     this.voiceDirty = false;
+    this.highlights = readJson('highlights.json', { guilds: {} });
+    this.highlightRev = 0; // muda a cada alteração (o índice de busca se refaz)
 
     this.config.guilds ??= {};
     this.warns.guilds ??= {};
     this.punishments.items ??= [];
     this.voice.guilds ??= {};
+    this.highlights.guilds ??= {};
   }
 
   // ---------- configuração por servidor ----------
@@ -161,6 +164,33 @@ export class Store {
     return before - this.punishments.items.length;
   }
 
+  /** Prazo ativo de um cargo temporário (ou undefined). */
+  findTempRole(guildId, userId, roleId) {
+    return this.punishments.items.find(
+      (item) =>
+        item.type === 'role' &&
+        item.guildId === guildId &&
+        item.userId === userId &&
+        item.roleId === roleId,
+    );
+  }
+
+  /** Apaga o prazo de um cargo temporário. Devolve quantos prazos foram apagados. */
+  clearTempRole(guildId, userId, roleId) {
+    const before = this.punishments.items.length;
+    this.punishments.items = this.punishments.items.filter(
+      (item) =>
+        !(
+          item.type === 'role' &&
+          item.guildId === guildId &&
+          item.userId === userId &&
+          item.roleId === roleId
+        ),
+    );
+    if (this.punishments.items.length !== before) writeJson('punicoes.json', this.punishments);
+    return before - this.punishments.items.length;
+  }
+
   // ---------- tempo em call ----------
 
   /** Soma tempo (em ms) ao total de call do usuário. Só vai ao disco no flushVoice(). */
@@ -188,5 +218,50 @@ export class Store {
     if (!this.voiceDirty) return;
     writeJson('voz.json', this.voice);
     this.voiceDirty = false;
+  }
+
+  // ---------- highlight (palavras que marcam a pessoa) ----------
+
+  /** { userId: [palavras] } de um servidor. */
+  highlightUsers(guildId) {
+    return this.highlights.guilds[guildId] || {};
+  }
+
+  highlightWords(guildId, userId) {
+    return this.highlightUsers(guildId)[userId] || [];
+  }
+
+  addHighlight(guildId, userId, word) {
+    this.highlights.guilds[guildId] ??= {};
+    const list = (this.highlights.guilds[guildId][userId] ??= []);
+    if (!list.includes(word)) list.push(word);
+    this.#saveHighlights();
+  }
+
+  removeHighlight(guildId, userId, word) {
+    const list = this.highlights.guilds[guildId]?.[userId];
+    if (!list?.includes(word)) return false;
+
+    const next = list.filter((item) => item !== word);
+    if (next.length) this.highlights.guilds[guildId][userId] = next;
+    else delete this.highlights.guilds[guildId][userId];
+
+    this.#saveHighlights();
+    return true;
+  }
+
+  /** Apaga todas as palavras da pessoa. Devolve quantas eram. */
+  clearHighlights(guildId, userId) {
+    const list = this.highlights.guilds[guildId]?.[userId];
+    if (!list) return 0;
+
+    delete this.highlights.guilds[guildId][userId];
+    this.#saveHighlights();
+    return list.length;
+  }
+
+  #saveHighlights() {
+    this.highlightRev += 1;
+    writeJson('highlights.json', this.highlights);
   }
 }

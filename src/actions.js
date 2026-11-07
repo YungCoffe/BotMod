@@ -47,7 +47,11 @@ export function guardUnban({ guild, actor, userId }) {
 
 export function guardRole({ guild, actor, role, member }) {
   assertBotPermission(guild, PermissionFlagsBits.ManageRoles, 'Gerenciar Cargos');
-  assertCanTarget({ guild, actor, member });
+
+  // Dá para usar o /setcargo em si mesmo. A regra "o alvo precisa estar abaixo de você"
+  // não faz sentido aí; as checagens do CARGO abaixo continuam valendo: ele precisa estar
+  // abaixo do seu cargo mais alto (ninguém se dá um cargo maior que o próprio) e abaixo do meu.
+  if (member?.id !== actor.id) assertCanTarget({ guild, actor, member });
 
   if (role.id === guild.id) throw new UserError('O cargo @everyone não pode ser gerenciado.');
   if (role.managed) {
@@ -378,7 +382,81 @@ export async function clearWarns({ client, guild, actor, cfg, store, user }) {
   );
 }
 
-export async function toggleRole({ client, guild, actor, cfg, member, role }) {
+export const MIN_TEMP_ROLE_MS = 60_000;
+export const MAX_TEMP_ROLE_MS = 365 * 24 * 60 * 60 * 1000;
+
+const unix = (ms) => Math.floor(ms / 1000);
+
+/** Valida tudo antes de pedir a confirmação do /cargotemp. */
+export function guardTempRole({ guild, actor, role, member, store, duration }) {
+  guardRole({ guild, actor, role, member });
+
+  if (!duration || duration.ms < MIN_TEMP_ROLE_MS) {
+    throw new UserError('O tempo mínimo é **1 minuto**.');
+  }
+  if (duration.ms > MAX_TEMP_ROLE_MS) throw new UserError('O tempo máximo é **365 dias**.');
+
+  // Sem esta trava, dar prazo a um cargo que a pessoa já tinha (sem prazo) o tiraria no fim.
+  if (member.roles.cache.has(role.id) && !store.findTempRole(guild.id, member.id, role.id)) {
+    throw new UserError(
+      `**${member.user.username}** já tem ${role} sem prazo. ` +
+        'Remova-o antes com `/setcargo` se quiser dar por tempo limitado.',
+    );
+  }
+}
+
+export async function tempRole({ client, guild, actor, cfg, store, member, role, duration, reason }) {
+  guardTempRole({ guild, actor, role, member, store, duration });
+  const motivo = cleanReason(reason);
+
+  const renewed = Boolean(store.findTempRole(guild.id, member.id, role.id));
+
+  if (!member.roles.cache.has(role.id)) {
+    await member.roles.add(
+      role,
+      audit(actor, `Cargo temporário por ${duration.text}: ${motivo}`),
+    );
+  }
+
+  // Prazo novo substitui o anterior do mesmo cargo (assim dá para estender).
+  store.clearTempRole(guild.id, member.id, role.id);
+  const expiresAt = Date.now() + duration.ms;
+
+  store.addPunishment({
+    type: 'role',
+    guildId: guild.id,
+    userId: member.id,
+    roleId: role.id,
+    expiresAt,
+    reason: motivo,
+    moderatorId: actor.id,
+  });
+
+  await logAction(
+    client,
+    guild.id,
+    cfg,
+    punishmentEmbed({
+      color: COLORS.info,
+      action: renewed ? 'Cargo temporário renovado' : 'Cargo temporário',
+      targetName: member.user.username,
+      targetId: member.id,
+      actorName: actor.user.username,
+      actorId: actor.id,
+      reason: `${role.name} — ${motivo}`,
+      duration: duration.text,
+      footer: 'O cargo é removido automaticamente no fim do prazo',
+    }),
+  );
+
+  return okEmbed(
+    renewed ? 'Cargo temporário renovado' : 'Cargo temporário aplicado',
+    `**${member.user.username}** ${renewed ? 'continua com' : 'agora tem'} o cargo ${role} por **${duration.text}**.\n` +
+      `Termina <t:${unix(expiresAt)}:R> (<t:${unix(expiresAt)}:f>).`,
+  );
+}
+
+export async function toggleRole({ client, guild, actor, cfg, store, member, role }) {
   guardRole({ guild, actor, role, member });
 
   const hadRole = member.roles.cache.has(role.id);
@@ -388,6 +466,10 @@ export async function toggleRole({ client, guild, actor, cfg, member, role }) {
   } else {
     await member.roles.add(role, audit(actor, 'Atribuição de cargo'));
   }
+
+  // Mexer no cargo na mão cancela o prazo do /cargotemp. Sem isso, um cargo dado de
+  // novo (sem prazo) seria removido quando o prazo antigo vencesse.
+  store?.clearTempRole(guild.id, member.id, role.id);
 
   await logAction(
     client,

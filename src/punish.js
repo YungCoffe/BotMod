@@ -87,8 +87,14 @@ async function renewMute(guild, punishment) {
   }
 }
 
-/** Erros do Discord que significam "já está resolvido": ban inexistente / usuário desconhecido. */
-const ALREADY_DONE = new Set([10026, 10013]);
+/** Erros do Discord que significam "já está resolvido": ban, usuário ou cargo que já não existem. */
+const ALREADY_DONE = new Set([10026, 10013, 10011]);
+
+const LABELS = {
+  ban: { done: 'Banimento temporário expirado', kind: 'banimento' },
+  mute: { done: 'Silenciamento expirado', kind: 'silenciamento' },
+  role: { done: 'Cargo temporário expirado', kind: 'cargo temporário' },
+};
 const MAX_FAILURES = 5;
 const failures = new Map();
 
@@ -105,6 +111,15 @@ async function liftExpired(guild, punishment, store) {
 
       if (member?.isCommunicationDisabled()) {
         await member.timeout(null, 'Silenciamento expirado').catch(() => {});
+      }
+    } else if (punishment.type === 'role') {
+      // Quem saiu do servidor já perdeu o cargo; quem perdeu na mão também não precisa de nada.
+      const member =
+        guild.members.cache.get(punishment.userId) ||
+        (await guild.members.fetch(punishment.userId).catch(() => null));
+
+      if (member?.roles.cache.has(punishment.roleId)) {
+        await member.roles.remove(punishment.roleId, 'Cargo temporário expirado');
       }
     }
   } catch (error) {
@@ -128,7 +143,7 @@ async function liftExpired(guild, punishment, store) {
       .setTitle('⚠️ Não consegui remover uma punição expirada')
       .setDescription(
         `<@${punishment.userId}> (\`${punishment.userId}\`)\n` +
-          `**Tipo:** ${punishment.type === 'ban' ? 'banimento' : 'silenciamento'}\n` +
+          `**Tipo:** ${(LABELS[punishment.type] || LABELS.mute).kind}\n` +
           `**Erro:** ${failed.message}\n\nRemova manualmente e confira as minhas permissões.`,
       )
       .setTimestamp();
@@ -140,16 +155,14 @@ async function liftExpired(guild, punishment, store) {
   failures.delete(punishment.id);
   store.removePunishment(punishment.id);
 
-  const title =
-    punishment.type === 'ban'
-      ? 'Banimento temporário expirado'
-      : 'Silenciamento expirado';
+  const title = (LABELS[punishment.type] || LABELS.mute).done;
+  const roleLine = punishment.type === 'role' ? `\n**Cargo:** <@&${punishment.roleId}>` : '';
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.ok)
     .setTitle(`✅ ${title}`)
     .setDescription(
-      `<@${punishment.userId}> (\`${punishment.userId}\`)\n**Motivo original:** ${punishment.reason || 'Não informado'}`,
+      `<@${punishment.userId}> (\`${punishment.userId}\`)${roleLine}\n**Motivo original:** ${punishment.reason || 'Não informado'}`,
     )
     .setTimestamp();
 

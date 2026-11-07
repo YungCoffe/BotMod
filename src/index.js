@@ -16,6 +16,8 @@ import { executeCommand } from './execute.js';
 import { handlePrefixCommand } from './prefix.js';
 import { enforceAutomod } from './automod.js';
 import { startVoiceTracking } from './voice.js';
+import { startHttpServer } from './server.js';
+import { notifyHighlights } from './highlight.js';
 
 if (!TOKEN) {
   console.error('❌ DISCORD_TOKEN não encontrado.');
@@ -40,6 +42,9 @@ const client = new Client({
 client.commands = new Collection(commands.map((command) => [command.data.name, command]));
 
 const voice = startVoiceTracking(client, store);
+
+// Porta HTTP para o Render (Web Service) e para serviços que "cutucam" o bot.
+startHttpServer(client);
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ ${readyClient.user.username} está online!`);
@@ -110,11 +115,16 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    await enforceAutomod({ client, message, cfg });
+    // Mensagem apagada pelo automod não marca ninguém.
+    const removed = await enforceAutomod({ client, message, cfg });
+    if (!removed) await notifyHighlights({ message, store });
   } catch (error) {
     console.error('[mensagem]', error);
   }
 });
+
+// Quem sai do servidor leva as próprias palavras de highlight junto.
+client.on(Events.GuildMemberRemove, (member) => store.clearHighlights(member.guild.id, member.id));
 
 // Mensagens editadas também passam pela censura e pelo automod
 // (senão bastaria enviar algo limpo e editar depois).

@@ -21,6 +21,7 @@ const SUB_ALIASES = {
   add: 'adicionar',
   remove: 'remover',
   list: 'listar',
+  clear: 'limpar',
 };
 
 const normalize = (value) =>

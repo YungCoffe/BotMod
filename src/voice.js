@@ -15,11 +15,14 @@ const CHECKPOINT_MS = 60_000;
  */
 const sessions = new Map();
 
-/** Só conta quem está num canal de voz comum: sem bots e fora do canal AFK. */
+/** O tempo no canal AFK do servidor também conta. Troque para false para ignorá-lo. */
+const COUNT_AFK = true;
+
+/** Conta quem está em qualquer canal de voz, menos bots. */
 function counts(state) {
   if (!state?.channelId) return false;
   if (state.member?.user?.bot) return false;
-  if (state.channelId === state.guild.afkChannelId) return false;
+  if (!COUNT_AFK && state.channelId === state.guild.afkChannelId) return false;
   return true;
 }
 
