@@ -2,13 +2,15 @@
 
 Bot de Discord enxuto: **só moderação + utilidades**, com acesso liberado por **cargo**, confirmação **Sim/Não** antes de cada punição e o comando **`/fastpuni`**, que aplica na hora sem perguntar. Funciona com **comandos de barra** e também com o **prefixo `z?`**.
 
-- **28 comandos** (15 de moderação, 2 de automod, 11 de utilidades/configuração)
+- **30 comandos** (16 de moderação, 2 de automod, 12 de utilidades/configuração)
 - Tempo em formato livre: `1s`, `30s`, `10min`, `1h`, `1d`, `1sem`, `1mes`, `1a` — e combinações como `1d12h`
 - Banimento e silenciamento temporários são removidos sozinhos quando o tempo acaba
 - Avisos ficam salvos (mesmo se o bot reiniciar)
 - Censura de palavras e bloqueio automático de links
 - Criação de emojis e figurinhas pelo próprio Discord
 - **Ranking de call** (`/rankcall`): top 5 de quem ficou mais tempo em call e quem está em call agora
+- **Highlight** (`/highlight`): o bot marca você quando alguém fala uma palavra que você escolheu
+- **Cargo temporário** (`/cargotemp`): dá um cargo por um tempo e o bot remove sozinho
 - Tudo é registrado no canal de logs que você escolher
 
 ---
@@ -108,7 +110,8 @@ Pronto. Para tirar o acesso de um cargo: `/config cargo remover`.
 | `/clear quantidade [usuario]` | Apaga mensagens do canal |
 | `/lock` / `/unlock` | Tranca / destranca o canal |
 | `/slowmode tempo` | Modo lento (aceita `off`) |
-| `/setcargo usuario cargo` | Adiciona ou remove um cargo |
+| `/setcargo usuario cargo` | Adiciona ou remove um cargo (dá para usar em **você mesmo**; o cargo precisa estar abaixo do seu e do meu) |
+| `/cargotemp usuario cargo tempo [motivo]` | Dá um cargo por tempo limitado (1 min a 365 dias); o bot remove no fim |
 | `/nick usuario [apelido]` | Troca o apelido (vazio = restaurar) |
 | `/fastpuni acao ...` | Aplica **sem confirmação** |
 
@@ -148,6 +151,7 @@ Para quem não está mais no servidor, use a opção **id** em vez de **usuario*
 | `/say texto [canal]` | Faz o bot falar |
 | `/anuncio titulo texto [canal] [cor]` | Envia um anúncio em embed |
 | `/rankcall` | Ranking de tempo em call (**todos** podem usar) |
+| `/highlight adicionar/remover/listar/limpar` | Palavras que fazem o bot te marcar (**todos** podem usar) |
 | `/config ...` | Cargos, logs, automod e censura (Administrador) |
 
 ### 🎨 Emojis e figurinhas
@@ -201,7 +205,7 @@ Regras do prefixo:
 Como funciona:
 
 - O tempo de quem está em call já entra na colocação em tempo real (quem está na call sobe no ranking enquanto fala).
-- Trocar de canal de voz **não** zera a contagem. O canal **AFK** do servidor e os **bots** não contam.
+- Trocar de canal de voz **não** zera a contagem. O canal **AFK** do servidor **conta** (aparece com 💤 em "Em call agora"); os **bots** não contam. Para ignorar o AFK, troque `COUNT_AFK` para `false` em `src/voice.js`.
 - Quem **sai do servidor** (ou é expulso/banido) sai do ranking.
 - O tempo é salvo em `data/voz.json` a cada minuto e ao desligar o bot. Se o bot cair, perde-se no máximo 1 minuto. A contagem começa quando o bot é ligado pela primeira vez com esta versão.
 - Não precisa ativar nada no portal do Discord: a intent de voz (`GUILD_VOICE_STATES`) não é privilegiada. Só rode `npm run deploy` de novo para registrar o `/rankcall`.
@@ -221,7 +225,7 @@ Como funciona:
 
 **Banimento temporário:** é desfeito sozinho quando o tempo termina, mesmo que o bot reinicie no meio.
 
-**Avisos, punições e ranking de call:** ficam guardados na pasta `data/` (não apague essa pasta). Em hospedagens com disco temporário (ex.: planos grátis do Render ou Heroku) essa pasta some a cada reinício: use um disco persistente.
+**Avisos, punições, ranking de call e highlights:** ficam guardados na pasta `data/` (não apague essa pasta). Em hospedagens com disco temporário (ex.: planos grátis do Render ou Heroku) essa pasta some a cada reinício: use um disco persistente.
 
 **Censura:** vale para palavras inteiras (uma palavra dentro de outra não conta), sem diferenciar maiúsculas, minúsculas ou acentos. A mensagem é apagada, o autor recebe uma DM e o caso vai para o canal de logs. Limite de 100 palavras por servidor.
 
@@ -238,6 +242,7 @@ Como funciona:
 ```
 src/
   index.js              liga o bot, distribui comandos e mensagens
+  server.js             porta HTTP (/health) para o Render
   deploy.js             registra os comandos no Discord
   commands/
     moderacao.js        comandos de moderação
@@ -245,6 +250,7 @@ src/
     emojis.js           /criaremoji e /criarfigurinha
     utilidades.js       help, ping, userinfo, serverinfo, avatar, say, anuncio
     voz.js              /rankcall (ranking de call)
+    highlight.js        /highlight (palavras que marcam você)
     config.js           /config (cargos, logs, automod)
   prefix.js             comandos com z? e adaptação das interações
   automod.js            censura de palavras e bloqueio de links
@@ -256,9 +262,50 @@ src/
   store.js              dados salvos em data/*.json
   time.js               leitura de 1s, 1min, 1d, 1a...
   voice.js              contagem do tempo em call
+  highlight.js          busca de palavras e marcação (highlight)
   ui.js                 embeds e confirmação Sim/Não
   logger.js             canal de logs
 ```
+
+## Cargo temporário
+
+`/cargotemp usuario cargo tempo [motivo]` (ou `z?cargotemp @pessoa @cargo 2h motivo`) dá o cargo e o bot **remove sozinho** quando o tempo acabar. O tempo vai de **1 minuto a 365 dias** (`30min`, `2h`, `1d`, `1sem`...).
+
+- Vale a mesma regra do `/setcargo`: o cargo precisa estar **abaixo do seu cargo mais alto** e **abaixo do meu**. Dá para usar em você mesmo.
+- Usar de novo no mesmo cargo **renova** o prazo (substitui o anterior).
+- Se a pessoa **já tem o cargo sem prazo**, o comando recusa: senão ela o perderia no fim. Remova antes com `/setcargo`.
+- Mexer no cargo com `/setcargo` (tirar ou dar de novo) **cancela o prazo**, então um cargo dado depois nunca é removido por um prazo antigo.
+- A remoção é conferida a cada minuto e o prazo sobrevive a reinícios (`data/punicoes.json`). Se eu não conseguir remover (falta de permissão), tento de novo por 5 minutos e aviso no canal de logs.
+- Se a pessoa sair do servidor, o prazo é só descartado. Aparece na contagem de "Punições temporárias ativas" do `/config`.
+
+---
+
+## Highlight
+
+Cada pessoa cadastra até **10 palavras** com `/highlight adicionar palavra`. Quando alguém falar uma delas em um canal, o bot **responde à mensagem marcando** quem cadastrou, destacando a palavra em negrito: `🔔 @você — palavra destacada: **bola**`.
+
+- Vale para **palavra inteira** (`bola` não pega `bolada`), sem diferenciar maiúsculas, acentos ou pontuação. Frases também funcionam (`cafe com leite`).
+- Mínimo de **3 letras** por palavra. A pessoa nunca é marcada pela própria mensagem, e bots não disparam.
+- **Só marca quem enxerga o canal**, para a mensagem não vazar para quem não deveria vê-la.
+- Anti-spam: a mesma pessoa só é marcada de novo **no mesmo canal após 1 minuto**, e no máximo **5 pessoas** por mensagem.
+- Mensagem apagada pelo automod/censura não marca ninguém. Quem sai do servidor perde as próprias palavras.
+- As palavras ficam em `data/highlights.json`.
+- Use pelos comandos de barra (`/highlight ...`): as respostas são só suas. Pelo prefixo (`z?highlight ...`) a resposta aparece para todo mundo.
+- Rode `npm run deploy` de novo para registrar o `/highlight`. Para deixar só a equipe, troque `staffOnly: false` por `true` em `src/commands/highlight.js`.
+
+---
+
+## Hospedar no Render (Web Service)
+
+O bot abre uma porta HTTP (variável `PORT`, que o Render define sozinho) com as rotas `/` e `/health`, que respondem `200` com o estado do bot. Isso evita o erro "Port scan timeout".
+
+- **Build Command:** `npm install` · **Start Command:** `npm start`
+- Variáveis de ambiente: `DISCORD_TOKEN`, `CLIENT_ID` (e `GUILD_ID` / `PREFIX` se usar).
+- **Health Check Path:** `/health`
+- No plano grátis, o Render **hiberna** o serviço depois de ~15 min sem acesso HTTP e o bot cai. Use um monitor (ex.: UptimeRobot) chamando `https://SEU-APP.onrender.com/health` a cada 5 minutos.
+- O disco do plano grátis é temporário: a pasta `data/` (avisos, punições, ranking de call) some a cada reinício. Para não perder dados, use um disco persistente.
+
+---
 
 ## Problemas comuns
 
