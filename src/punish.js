@@ -14,9 +14,21 @@ export async function clearMute(member, reason) {
   if (member.isCommunicationDisabled()) await member.timeout(null, reason);
 }
 
+let running = false;
+
 /** Verifica de minuto em minuto punições que expiraram (e renova mutes longos). */
 export function startScheduler(client, store) {
-  const run = () => tick(client, store).catch((error) => console.error('[agendador]', error));
+  const run = async () => {
+    if (running) return; // não deixa duas verificações rodarem ao mesmo tempo
+    running = true;
+    try {
+      await tick(client, store);
+    } catch (error) {
+      console.error('[agendador]', error);
+    } finally {
+      running = false;
+    }
+  };
 
   const firstRun = setTimeout(run, 5_000);
   firstRun.unref?.();
@@ -37,6 +49,8 @@ async function tick(client, store) {
       continue;
     }
 
+    if (guild.available === false) continue; // queda do Discord: tenta de novo depois
+
     if (punishment.expiresAt > now) {
       if (punishment.type === 'mute') await renewMute(guild, punishment);
       continue;
@@ -47,6 +61,10 @@ async function tick(client, store) {
 }
 
 async function renewMute(guild, punishment) {
+  // Só mutes maiores que 28 dias precisam de renovação. Os demais acabam sozinhos,
+  // e quem foi liberado manualmente pelo Discord não pode ser silenciado de novo.
+  if (punishment.expiresAt - punishment.createdAt <= MAX_TIMEOUT_MS) return;
+
   const remaining = punishment.expiresAt - Date.now();
   if (remaining <= 0) return;
 
@@ -69,12 +87,17 @@ async function renewMute(guild, punishment) {
   }
 }
 
+/** Erros do Discord que significam "já está resolvido": ban inexistente / usuário desconhecido. */
+const ALREADY_DONE = new Set([10026, 10013]);
+const MAX_FAILURES = 5;
+const failures = new Map();
+
 async function liftExpired(guild, punishment, store) {
+  let failed = null;
+
   try {
     if (punishment.type === 'ban') {
-      await guild.bans.remove(punishment.userId, 'Banimento temporário expirado').catch((error) => {
-        if (error.code !== 10026) throw error; // 10026 = banimento já não existe
-      });
+      await guild.bans.remove(punishment.userId, 'Banimento temporário expirado');
     } else if (punishment.type === 'mute') {
       const member =
         guild.members.cache.get(punishment.userId) ||
@@ -85,9 +108,36 @@ async function liftExpired(guild, punishment, store) {
       }
     }
   } catch (error) {
-    console.error('[expiração]', punishment.id, error.message);
+    if (!ALREADY_DONE.has(error.code)) failed = error;
   }
 
+  if (failed) {
+    // Antes a punição era apagada mesmo com erro: a pessoa ficava banida para sempre
+    // e o log dizia que tinha expirado. Agora tenta de novo a cada minuto.
+    const count = (failures.get(punishment.id) || 0) + 1;
+    failures.set(punishment.id, count);
+    console.error(`[expiração] ${punishment.id} (tentativa ${count}/${MAX_FAILURES}):`, failed.message);
+
+    if (count < MAX_FAILURES) return;
+
+    failures.delete(punishment.id);
+    store.removePunishment(punishment.id);
+
+    const alert = new EmbedBuilder()
+      .setColor(COLORS.error)
+      .setTitle('⚠️ Não consegui remover uma punição expirada')
+      .setDescription(
+        `<@${punishment.userId}> (\`${punishment.userId}\`)\n` +
+          `**Tipo:** ${punishment.type === 'ban' ? 'banimento' : 'silenciamento'}\n` +
+          `**Erro:** ${failed.message}\n\nRemova manualmente e confira as minhas permissões.`,
+      )
+      .setTimestamp();
+
+    await logAction(guild.client, guild.id, store.guildConfig(guild.id), alert);
+    return;
+  }
+
+  failures.delete(punishment.id);
   store.removePunishment(punishment.id);
 
   const title =

@@ -7,7 +7,6 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import { BOT_NAME, PREFIX, TOKEN } from './config.js';
-import { startHealthServer } from './health.js';
 import { Store } from './store.js';
 import { commands } from './commands/index.js';
 import { startScheduler } from './punish.js';
@@ -16,6 +15,7 @@ import { failEmbed } from './ui.js';
 import { executeCommand } from './execute.js';
 import { handlePrefixCommand } from './prefix.js';
 import { enforceAutomod } from './automod.js';
+import { startVoiceTracking } from './voice.js';
 
 if (!TOKEN) {
   console.error('❌ DISCORD_TOKEN não encontrado.');
@@ -33,10 +33,13 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
 client.commands = new Collection(commands.map((command) => [command.data.name, command]));
+
+const voice = startVoiceTracking(client, store);
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ ${readyClient.user.username} está online!`);
@@ -113,13 +116,41 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+// Mensagens editadas também passam pela censura e pelo automod
+// (senão bastaria enviar algo limpo e editar depois).
+client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+  try {
+    if (!newMessage.inGuild() || newMessage.author?.bot) return;
+    if (!newMessage.content || oldMessage.content === newMessage.content) return;
+
+    await enforceAutomod({ client, message: newMessage, cfg: store.guildConfig(newMessage.guildId) });
+  } catch (error) {
+    console.error('[mensagem editada]', error);
+  }
+});
+
+// Sem esses dois, um erro de conexão derruba o bot inteiro.
+client.on(Events.Error, (error) => console.error('[discord]', error));
+client.on(Events.ShardError, (error) => console.error('[conexão]', error));
+
 process.on('unhandledRejection', (error) => {
   console.error('[promise não tratada]', error);
 });
 
-startHealthServer();
+// Ao desligar (Ctrl+C ou parada da hospedagem), salva o tempo de call em andamento.
+function shutdown(signal) {
+  console.log(`\n[${signal}] Salvando dados e saindo...`);
+  try {
+    voice.flush();
+  } catch (error) {
+    console.error('[encerrando]', error);
+  }
+  client.destroy();
+  process.exit(0);
+}
 
-startHealthServer();
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 console.log(`🚀 Iniciando ${BOT_NAME}...`);
 

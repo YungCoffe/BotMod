@@ -94,6 +94,7 @@ export function guardNickname({ guild, actor, member }) {
 
 export async function ban({ client, guild, actor, cfg, store, user, member, duration, reason }) {
   guardBan({ guild, actor, user, member });
+  if (duration && duration.ms < 1000) throw new UserError('O tempo mínimo é **1 segundo**.');
   const motivo = cleanReason(reason);
 
   await tryDm(
@@ -116,6 +117,10 @@ export async function ban({ client, guild, actor, cfg, store, user, member, dura
     }
     throw error;
   }
+
+  // Banimento novo substitui o anterior: sem isso, um tempban antigo desbania
+  // a pessoa mesmo depois de um ban permanente.
+  store.clearPunishments(guild.id, user.id, 'ban');
 
   if (duration) {
     store.addPunishment({
@@ -197,6 +202,10 @@ export async function mute({ client, guild, actor, cfg, store, member, duration,
   const motivo = cleanReason(reason);
 
   await applyMute(member, duration.ms, audit(actor, motivo));
+
+  // Mute novo substitui o anterior: sem isso, o fim do mute curto soltava a pessoa
+  // no meio de um mute longo.
+  store.clearPunishments(guild.id, member.id, 'mute');
 
   store.addPunishment({
     type: 'mute',
