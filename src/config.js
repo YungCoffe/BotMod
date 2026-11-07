@@ -14,6 +14,15 @@ export const CLIENT_ID = (process.env.CLIENT_ID || '').trim();
 export const GUILD_ID = (process.env.GUILD_ID || '').trim();
 export const PREFIX = (process.env.PREFIX || 'z?').trim();
 
+/**
+ * IDs (separados por vírgula) de quem é "dono do bot". O dono da aplicação no Discord
+ * já é reconhecido sozinho; use isto para incluir mais alguém.
+ */
+export const OWNER_IDS = (process.env.OWNER_IDS || '')
+  .split(/[\s,;]+/)
+  .map((id) => id.trim())
+  .filter(Boolean);
+
 /** Registra os comandos de barra sozinho ao ligar o bot. Use AUTO_DEPLOY=false para desligar. */
 export const AUTO_DEPLOY = !['false', '0', 'no', 'nao', 'não', 'off'].includes(
   (process.env.AUTO_DEPLOY || '').trim().toLowerCase(),

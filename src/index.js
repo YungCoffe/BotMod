@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import { AUTO_DEPLOY, BOT_NAME, CLIENT_ID, GUILD_ID, PREFIX, TOKEN } from './config.js';
 import { autoRegister, registerHint } from './register.js';
+import { loadBotOwners } from './owners.js';
 import { Store } from './store.js';
 import { commands } from './commands/index.js';
 import { startScheduler } from './punish.js';
@@ -55,6 +56,11 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
   console.log(`   Comandos: ${client.commands.size}`);
   console.log(`   Prefixo: ${PREFIX}`);
+
+  const ownerIds = await loadBotOwners(readyClient);
+  console.log(
+    `   Dono(s) do bot: ${ownerIds.length ? ownerIds.join(', ') : 'nenhum identificado (defina OWNER_IDS no .env)'}`,
+  );
 
   try {
     const invite = client.generateInvite({

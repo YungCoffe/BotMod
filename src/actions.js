@@ -5,6 +5,7 @@ import { UserError, assertBotPermission, assertCanTarget } from './guard.js';
 import { okEmbed, warnEmbed, tryDm } from './ui.js';
 import { applyMute, clearMute, MAX_TIMEOUT_MS } from './punish.js';
 import { logAction, punishmentEmbed } from './logger.js';
+import { isBotOwner } from './owners.js';
 
 const cleanReason = (reason) => (reason || '').trim() || 'Não informado';
 
@@ -63,11 +64,13 @@ export function guardRole({ guild, actor, role, member }) {
     throw new UserError(`O meu cargo mais alto precisa ficar acima de **${role.name}**.`);
   }
 
-  if (
-    !actor.permissions.has(PermissionFlagsBits.Administrator) &&
-    actor.roles.highest.comparePositionTo(role) <= 0
-  ) {
-    throw new UserError(`Você não pode gerenciar **${role.name}** (ele está acima do seu cargo).`);
+  // Cargo igual ou acima do seu cargo mais alto: só o dono do bot pode. Antes, quem tinha a
+  // permissão Administrador (ou estava num cargo liberado) passava por cima dessa regra.
+  if (actor.roles.highest.comparePositionTo(role) <= 0 && !isBotOwner(actor.id)) {
+    throw new UserError(
+      `Você não pode gerenciar **${role.name}** (ele está acima do seu cargo). ` +
+        'Só o dono do bot pode dar ou tirar cargos acima do próprio.',
+    );
   }
 }
 
