@@ -65,6 +65,9 @@ const commands = [
       if (rawTime) {
         duration = parseDuration(rawTime);
         if (!duration) return invalidTime(interaction);
+        if (duration.ms < 1000) {
+          return fail(interaction, 'Tempo inválido', 'O tempo mínimo é **1 segundo**.');
+        }
       }
 
       const member = await findMember(guild, user);
@@ -520,7 +523,7 @@ const commands = [
       }
 
       try {
-        assertBotPermission(guild, PermissionFlagsBits.ManageChannels, 'Gerenciar Canais');
+        assertBotPermission(guild, PermissionFlagsBits.ManageRoles, 'Gerenciar Cargos (Gerenciar Permissões)');
       } catch (error) {
         if (error instanceof UserError) return fail(interaction, 'Não foi possível', error.message);
         throw error;
@@ -559,7 +562,7 @@ const commands = [
       }
 
       try {
-        assertBotPermission(guild, PermissionFlagsBits.ManageChannels, 'Gerenciar Canais');
+        assertBotPermission(guild, PermissionFlagsBits.ManageRoles, 'Gerenciar Cargos (Gerenciar Permissões)');
       } catch (error) {
         if (error instanceof UserError) return fail(interaction, 'Não foi possível', error.message);
         throw error;

@@ -3,8 +3,9 @@ import { commands as automod } from './automod.js';
 import { commands as emojis } from './emojis.js';
 import { commands as utilities } from './utilidades.js';
 import { commands as configuration } from './config.js';
+import { commands as voice } from './voz.js';
 
-const all = [...moderation, ...automod, ...emojis, ...utilities, ...configuration];
+const all = [...moderation, ...automod, ...emojis, ...utilities, ...configuration, ...voice];
 
 const seen = new Set();
 for (const command of all) {

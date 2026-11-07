@@ -55,6 +55,7 @@ const commands = [
             value:
               '`/help` `/ping` `/userinfo` `/serverinfo` `/avatar`\n' +
               '`/say` `/anuncio`\n' +
+              '`/rankcall` — ranking de tempo em call (todos podem usar)\n' +
               '`/config` — cargos, logs, automod e censura (Administrador)',
           },
           {
